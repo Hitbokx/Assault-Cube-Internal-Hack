@@ -1,11 +1,5 @@
 #include<iostream>
-
-struct Vector3
-{
-	float x{};
-	float y{};
-	float z{};
-};
+#include "Vector.h"
 
 class Player
 {

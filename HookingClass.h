@@ -1,11 +1,15 @@
 #pragma once
 
 #include <Windows.h>
+#include <iostream>
 
 class Hook
 {
 private:
+	BYTE* m_dst{ nullptr };
+	BYTE* m_src{ nullptr };
 	BYTE* m_gateway{ nullptr };
+	uintptr_t m_len{ 0 };
 
 	template <SIZE_T LENGTH>
 	void giveProtection( void* src, DWORD& oldProtect)
@@ -33,6 +37,16 @@ public:
 	Hook( ) = default;
 
 	Hook( const Hook& hook ) = delete;                               // copy constructor
+
+	Hook( const char* exportName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len )
+	{
+		HMODULE hMod = GetModuleHandleA( modName );
+
+		this->m_src = (BYTE*)GetProcAddress( hMod, exportName );
+		this->m_dst = dst;
+		this->m_len = len;
+		this->m_gateway = PtrToGatewayPtr;
+	}
 
 	Hook& operator=( const Hook& hook ) = delete;                    // copy assignment
 
@@ -144,3 +158,37 @@ public:
 };
 
 inline Hook g_hook{};
+
+namespace mem
+{
+	bool Detour64( BYTE* src, BYTE* dst, const uintptr_t len );
+	
+
+	BYTE* TrampHook64( BYTE* src, BYTE* dst, const uintptr_t len );
+	
+
+	void Patch( BYTE* dst, BYTE* src, unsigned int size );
+	
+}
+
+struct Hook2
+{
+	bool bStatus{ false };
+
+	BYTE* src{ nullptr };
+	BYTE* dst{ nullptr };
+	BYTE* PtrToGatewayFnPtr{ nullptr };
+	uintptr_t len{ 0 };
+
+	BYTE originalBytes[10]{ 0 };
+
+	Hook2( BYTE* src, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len );
+	
+	Hook2( const char* exportName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len );
+
+	void Enable( );
+
+	void Disable( );
+
+	void Toggle( );
+};

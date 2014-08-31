@@ -13,13 +13,28 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="OpenGLText">
+      <UniqueIdentifier>{4ac07c78-ad6f-46e2-b0ee-4535571a21f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OpenGL Draw">
+      <UniqueIdentifier>{170e44ae-41a7-4a7a-8e3f-299fee8f1b8d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllMain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Class.cpp">
+    <ClCompile Include="glText.cpp">
+      <Filter>OpenGLText</Filter>
+    </ClCompile>
+    <ClCompile Include="glDraw.cpp">
+      <Filter>OpenGL Draw</Filter>
+    </ClCompile>
+    <ClCompile Include="Vector.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="HookingClass.cpp">
+      <Filter>Header Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -27,6 +42,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HookingClass.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glText.h">
+      <Filter>OpenGLText</Filter>
+    </ClInclude>
+    <ClInclude Include="glDraw.h">
+      <Filter>OpenGL Draw</Filter>
+    </ClInclude>
+    <ClInclude Include="Vector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

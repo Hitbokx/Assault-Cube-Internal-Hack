@@ -4,6 +4,8 @@
 #include "Class.h"
 #include "HookingClass.h"
 #include <functional>
+#include "glDraw.h"
+#include "glText.h"
 
 DWORD g_jmpBackAdd{};
 DWORD g_team{};
@@ -12,7 +14,7 @@ using tGetCrossHairEnt = Player*(__cdecl*)();
 using tPrintF = char* (__cdecl*)(const char* format, ...);
 using twglSwapBuffer = BOOL( __stdcall* )(HDC hdc);
 
-twglSwapBuffer wglSwapBuffer; 
+twglSwapBuffer wglSwapBuffersGateway; 
 
 uintptr_t ModuleBase{ (uintptr_t)GetModuleHandle( L"ac_client.exe" ) };
 tGetCrossHairEnt getCrossHairEnt{ (tGetCrossHairEnt)(ModuleBase + 0x607c0) };
@@ -32,6 +34,7 @@ bool bHop{ false };
 bool bSpeed{ false };
 bool bTriggerbot{ false };
 bool bToggleState{ false };
+bool bTeleport{ false };
 
 const int newValue{ 9999 };
 const int HnewValue{ newValue };
@@ -59,7 +62,36 @@ void __declspec(naked) ourFunc( )
 	}
 }
 
-BOOL __stdcall hkwglSwapBuffer( HDC hdc )
+GL::Font glFont{};
+const int FONT_HEIGHT{ 15 };
+const int FONT_WIDTH{ 9 };
+const char* example{ "ESP Box" };
+const char* example2{ "I'm inside fam" };
+
+void Draw( )
+{
+	HDC currHDC{ wglGetCurrentDC( ) };
+	if ( !glFont.bBuilt || currHDC != glFont.hDc )
+	{
+		glFont.Build( FONT_HEIGHT );
+	}
+
+	GL::setupOrtho( );
+
+	GL::drawOutline( 320, 240, 200, 200, 2.0f, rgb::red );
+
+	float textPointX{ glFont.centerText( 320, 200, strlen( example ) * FONT_WIDTH ) };
+	float textPointY{ 240 - FONT_HEIGHT / 2 };
+
+	glFont.Print( textPointX, textPointY, rgb::green, "%s", example );
+
+	Vector3 insideTextPoint{ glFont.centerText( 320, 240 + 100, 200, 200, strlen( example2 ) * FONT_WIDTH, FONT_HEIGHT ) };
+	glFont.Print( insideTextPoint.x, insideTextPoint.y, rgb::green, "%s", example2 );
+
+	GL::restoreGL( );
+}
+
+BOOL __stdcall hkwglSwapBuffers( HDC hdc )
 {
 
 	if ( GetAsyncKeyState( VK_NUMPAD0 ) & 1 )
@@ -94,10 +126,9 @@ BOOL __stdcall hkwglSwapBuffer( HDC hdc )
 
 			g_hook.patch<10>( (BYTE*)(ModuleBase + 0x63786), (BYTE*)"\x50\x8D\x4C\x24\x1C\x51\x8B\xCE\xFF\xD2", 10 );
 		}
-	}
+	} // Recoil
 
-
-	if ( GetAsyncKeyState( VK_NUMPAD2 ) & 1 )
+	if ( GetAsyncKeyState( VK_NUMPAD2 ) & 1 ) // One Shot One kill
 	{
 		bOneShotOneKill = !bOneShotOneKill;
 
@@ -116,7 +147,7 @@ BOOL __stdcall hkwglSwapBuffer( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "One Shot One Kill hack disabled!!" );
 
-			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x29D1F), (BYTE*)"\x29\x7B\x04\x8B\xC7",5 );
+			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x29D1F), (BYTE*)"\x29\x7B\x04\x8B\xC7", 5 );
 		}
 	}
 
@@ -285,14 +316,14 @@ BOOL __stdcall hkwglSwapBuffer( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "B_HOP hack enabled." );
 
-			g_hook.patch<7>( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\xB2\x99\x88\x50\x6B\x90\x90",7 );
+			g_hook.patch<7>( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\xB2\x99\x88\x50\x6B\x90\x90", 7 );
 
 		}
 		else
 		{
 			printF( format, "HACKER", 1, "B_HOP hack disabled." );
 
-			g_hook.patch<7>( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\x8A\x54\x24\x04\x88\x50\x6B",7 );
+			g_hook.patch<7>( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\x8A\x54\x24\x04\x88\x50\x6B", 7 );
 		}
 	}
 
@@ -320,13 +351,13 @@ BOOL __stdcall hkwglSwapBuffer( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "Speed Hack enabled!!" );
 
-			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x03\x00\x00\x00",5 );
+			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x03\x00\x00\x00", 5 );
 		}
 		else
 		{
 			printF( format, "HACKER", 1, "Speed Hack disabled!!" );
 
-			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x01\x00\x00\x00",5 );
+			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x01\x00\x00\x00", 5 );
 		}
 	}
 
@@ -350,8 +381,24 @@ BOOL __stdcall hkwglSwapBuffer( HDC hdc )
 		}
 	}
 
-	// Continuos write/freeze
+	if ( GetAsyncKeyState( VK_F12 ) & 1 )
+	{
+		bTeleport = !bTeleport;
 
+		if ( bTeleport )
+		{
+			printF( format, "HACKER", 1, "You are telported to enemy spawn." );
+
+			localPlayerBaseAddr->playerCoordinates = { 73.13, 183.82, 0 };
+		}
+		else
+		{
+			printF( format, "HACKER", 1, "You are telported back to your spawn." );
+
+			localPlayerBaseAddr->playerCoordinates = { 219.74, 39.83, 1 };
+		}
+	}
+	// Continuos write/freeze
 	// check against 'hackable' state
 	if ( localPlayerBaseAddr )
 	{
@@ -382,26 +429,32 @@ BOOL __stdcall hkwglSwapBuffer( HDC hdc )
 		}
 	}
 
-	return wglSwapBuffer( hdc );
+	Draw( );
+	return wglSwapBuffersGateway( hdc );
 }
 
-DWORD WINAPI myThreadProc( HMODULE hModule )
+DWORD WINAPI myThreadProc( HMODULE hInstDLL )
 {
-	// Create console
-
 	AllocConsole( ); // To allocate console for logging
 	FILE* f;
 	freopen_s( &f, "CONOUT$", "w", stdout );
-	std::cout << "OG for a fee, stay sippin' fam!\n\n";
+	std::cout << "Yo! Hitbokx here.\n";
 
-	// Get module base
-	wglSwapBuffer = (twglSwapBuffer)(GetProcAddress( GetModuleHandle( L"opengl32.dll" ), "wglSwapBuffers" ));
-	wglSwapBuffer = (twglSwapBuffer)(g_hook.TrampHook32<5>( (BYTE*)wglSwapBuffer, (BYTE*)hkwglSwapBuffer ));
+	Hook2 SwapBuffersHook( "wglSwapBuffers", "opengl32.dll", (BYTE*)hkwglSwapBuffers, (BYTE*)&wglSwapBuffersGateway, 5 );
 
-	// Cleanup & eject
-	
-	//FreeLibraryAndExitThread( hModule, 0 );
+	SwapBuffersHook.Enable( );
 
+	while ( !(GetAsyncKeyState( VK_END ) & 1) )
+	{
+
+	}
+
+	SwapBuffersHook.Disable();
+
+	if ( f )
+		fclose( f );
+	FreeConsole( );
+	FreeLibraryAndExitThread( hInstDLL, 0 );//to call DLL_PROCESS_DETACH and resource deallocation
 	return 0;
 }
 
@@ -412,10 +465,9 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
 		case DLL_PROCESS_ATTACH:
 
 			::DisableThreadLibraryCalls( hinstDLL );
-			CloseHandle(CreateThread( nullptr, 0, LPTHREAD_START_ROUTINE( myThreadProc ), hinstDLL, 0, nullptr ));
+			CloseHandle( CreateThread( nullptr, 0, LPTHREAD_START_ROUTINE( myThreadProc ), hinstDLL, 0, nullptr ) );
 			break;
-		case DLL_THREAD_ATTACH:
-		case DLL_THREAD_DETACH:
+
 		case DLL_PROCESS_DETACH:
 			//perform any necesary clean-up
 			break;
