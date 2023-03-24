@@ -2,6 +2,58 @@
 #include<iostream>
 #include "mem.h"
 
+struct Vector3
+{
+	float x{};
+	float y{};
+	float z{};
+};
+
+class ent
+{
+public:
+	Vector3 headPos; //0x0004
+	char pad_0010[36]; //0x0010
+	Vector3 playerPos; //0x0034
+	Vector3 viewAngles; //0x0040
+	char pad_004C[172]; //0x004C
+	int32_t Health; //0x00F8
+	int32_t Armour; //0x00FC
+	char pad_0100[88]; //0x0100
+	int32_t numGrenades; //0x0158
+	char pad_015C[201]; //0x015C
+	char name[16]; //0x0225
+	char pad_0235[319]; //0x0235
+	class weapon* currentWeapon; //0x0374
+
+	virtual void Function0( );
+	virtual void Function1( );
+	virtual void Function2( );
+	virtual void Function3( );
+	virtual void Function4( );
+	virtual void Function5( );
+	virtual void Function6( );
+	virtual void Function7( );
+	virtual void Function8( );
+	virtual void Function9( );
+}; //Size: 0x0378
+static_assert(sizeof( ent ) == 0x378);
+
+class weapon
+{
+public:
+	char pad_0000[20]; //0x0000
+	class ammoClip* ammoPtr; //0x0014
+}; //Size: 0x0018
+static_assert(sizeof( weapon ) == 0x18);
+
+class ammoClip
+{
+public:
+	int32_t ammo; //0x0000
+}; //Size: 0x0004
+static_assert(sizeof( ammoClip ) == 0x4);
+
 DWORD WINAPI myThreadProc( HMODULE hModule )
 {
 	// Create console
@@ -9,13 +61,12 @@ DWORD WINAPI myThreadProc( HMODULE hModule )
 	AllocConsole( ); // To allocate console for logging
 	FILE* f;
 	freopen_s( &f, "CONOUT$", "w", stdout );
-	std::cout << "OG for a fee, stay sippin' fam\n";
+	std::cout << "OG for a fee, stay sippin' fam\n\n";
 
 	// Get module base
 
 	uintptr_t ModuleBase{ (uintptr_t)GetModuleHandle( L"ac_client.exe" ) };
-	uintptr_t localPlayerBaseAddr = ModuleBase + 0x10f4f4;//ModuleBase + 0x10f4f4 };
-	uintptr_t* pLocalPlayerBaseAddr = (uintptr_t*)(localPlayerBaseAddr) ;
+	ent* pLocalPlayerBaseAddr = *(ent**)(ModuleBase + 0x10f4f4);
 
 	bool bHealth{ false };
 	bool bAmmo{ false };
@@ -122,27 +173,23 @@ DWORD WINAPI myThreadProc( HMODULE hModule )
 		{
 			if ( bHealth )
 			{
-				*(int*)(*pLocalPlayerBaseAddr + 0xf8) = HnewValue;
+				pLocalPlayerBaseAddr->Health = HnewValue;
 			}
 
 			if ( bAmmo )
 			{
-				uintptr_t ammoAddr{ mem::findDMAAddy( localPlayerBaseAddr, {0x374, 0x14, 0x0} ) };
-				int* ammo{ (int*)ammoAddr };
-				*ammo = AnewValue;
+				pLocalPlayerBaseAddr->currentWeapon->ammoPtr->ammo = AnewValue;
 
-				// Or
-				//*(int*)(mem::findDMAAddy( pLocalPlayer, { 0x374,0x14,0x0 } )) = 1337;
 			}
 
 			if ( bArmour )
 			{
-				*(int*)(*pLocalPlayerBaseAddr + 0xFC) = ARnewValue;
+				pLocalPlayerBaseAddr->Armour = ARnewValue;
 			}
 
 			if ( bGrenade )
 			{
-				*(int*)(*pLocalPlayerBaseAddr + 0x158) = GnewValue;
+				pLocalPlayerBaseAddr->numGrenades = GnewValue;
 			}
 		}
 
