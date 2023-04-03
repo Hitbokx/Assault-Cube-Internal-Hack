@@ -26,3 +26,44 @@ uintptr_t mem::findDMAAddy( uintptr_t ptr, std::vector<uintptr_t>offsets )
 	}
 	return addr;
 }
+
+bool mem::Detour32( BYTE* src, BYTE* dst, const intptr_t len )
+{
+	if ( len < 5 )
+		return false;
+
+	DWORD oldProtect;
+
+	VirtualProtect( src, len, PAGE_EXECUTE_READWRITE, &oldProtect );
+
+	intptr_t relativeAddress{ (intptr_t)dst - (intptr_t)src - 5 };
+
+	*src = 0xE9;
+
+	*(intptr_t*)(src + 1) = relativeAddress;
+
+	VirtualProtect( src, len, oldProtect, &oldProtect );
+
+	return true;
+}
+
+BYTE* mem::TrampHook32( BYTE* src, BYTE* dst, const intptr_t len )
+{
+	if ( len < 5 )
+		return 0;
+
+	// Create Gateway
+	BYTE* gateway{ (BYTE*)(VirtualAlloc( 0, len, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE )) };
+
+	memcpy_s( gateway, len, src, len );
+
+	intptr_t gatewayRelativeAddress{ (intptr_t)src - (intptr_t)gateway - 5 };
+
+	*(gateway + len) = 0xE9;
+
+	*(intptr_t*)(gateway + len + 1) = gatewayRelativeAddress;
+
+	Detour32( src, dst, len );
+
+	return gateway;
+}

@@ -8,9 +8,19 @@ DWORD g_jmpBackAdd{};
 DWORD g_team{};
 
 using tGetCrossHairEnt = Player*(__cdecl*)();
-using oPrintF = char* (__cdecl*)(const char* format, ...);
+using tPrintF = char* (__cdecl*)(const char* format, ...);
+using twglSwapBuffer = BOOL( __stdcall* )(HDC hdc);
 
-bool hook( void* toHook, void* ourFunc, int length )
+twglSwapBuffer wglSwapBuffer; 
+
+BOOL __stdcall hkwglSwapBuffer( HDC hdc )
+{
+	std::cout << "Hooked!\n";
+
+	return wglSwapBuffer( hdc );
+}
+
+bool midDetour32( void* toHook, void* ourFunc, int length )
 {
 	if ( length < 5 )
 		return false;
@@ -62,7 +72,10 @@ DWORD WINAPI myThreadProc( HMODULE hModule )
 
 	uintptr_t ModuleBase{ (uintptr_t)GetModuleHandle( L"ac_client.exe" ) };
 	tGetCrossHairEnt getCrossHairEnt{ (tGetCrossHairEnt)(ModuleBase + 0x607c0) };
-	oPrintF printF{ (oPrintF)(ModuleBase + 0x6B060) };
+	tPrintF printF{ (tPrintF)(ModuleBase + 0x6B060) };
+
+	wglSwapBuffer = (twglSwapBuffer)(GetProcAddress( GetModuleHandle( L"opengl32.dll" ), "wglSwapBuffers" ));
+	wglSwapBuffer = (twglSwapBuffer)(mem::TrampHook32( (BYTE*)wglSwapBuffer, (BYTE*)hkwglSwapBuffer, 5 ));
 
 	Player* localPlayerBaseAddr{ *(Player**)(ModuleBase + 0x10f4f4) };
 
@@ -138,7 +151,7 @@ DWORD WINAPI myThreadProc( HMODULE hModule )
 				g_jmpBackAdd = hookAdd + hookLength;
 				g_team = localPlayerBaseAddr->team;
 
-				hook( (void*)hookAdd, &ourFunc, hookLength );
+				midDetour32( (void*)hookAdd, &ourFunc, hookLength );
 			}
 			else
 			{
