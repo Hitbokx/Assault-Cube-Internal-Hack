@@ -1,58 +1,53 @@
 #include<Windows.h>
 #include<iostream>
 #include "mem.h"
+#include "Class.h"
+#include <functional>
 
-struct Vector3
+DWORD g_jmpBackAdd{};
+DWORD g_team{};
+
+using tGetCrossHairEnt = Player*(__cdecl*)();
+using oPrintF = char* (__cdecl*)(const char* format, ...);
+
+bool hook( void* toHook, void* ourFunc, int length )
 {
-	float x{};
-	float y{};
-	float z{};
-};
+	if ( length < 5 )
+		return false;
 
-class ent
+	DWORD oldProtect{};
+	VirtualProtect( toHook, length, PAGE_EXECUTE_READWRITE, &oldProtect );
+	memset( toHook, 0x90, length );
+
+	DWORD relativeAddr{ ((DWORD)ourFunc - (DWORD)toHook) - 5 };
+
+	*(BYTE*)toHook = 0xE9;                            //jmp
+	*(DWORD*)((DWORD)toHook + 1) = relativeAddr;      // to relative address
+
+	VirtualProtect( toHook, length, oldProtect, &oldProtect );
+
+	return true;
+}
+
+void __declspec(naked) ourFunc()
 {
-public:
-	Vector3 headPos; //0x0004
-	char pad_0010[36]; //0x0010
-	Vector3 playerPos; //0x0034
-	Vector3 viewAngles; //0x0040
-	char pad_004C[172]; //0x004C
-	int32_t Health; //0x00F8
-	int32_t Armour; //0x00FC
-	char pad_0100[88]; //0x0100
-	int32_t numGrenades; //0x0158
-	char pad_015C[201]; //0x015C
-	char name[16]; //0x0225
-	char pad_0235[319]; //0x0235
-	class weapon* currentWeapon; //0x0374
+	__asm
+	{
+		mov eax, g_team
+		cmp [ebx + 0x32C], eax
+		jne originalcode
+		sub [ebx + 04], edi
+		mov eax, edi
+		jmp exit
 
-	virtual void Function0( );
-	virtual void Function1( );
-	virtual void Function2( );
-	virtual void Function3( );
-	virtual void Function4( );
-	virtual void Function5( );
-	virtual void Function6( );
-	virtual void Function7( );
-	virtual void Function8( );
-	virtual void Function9( );
-}; //Size: 0x0378
-static_assert(sizeof( ent ) == 0x378);
+		originalcode :
+		mov [ebx + 04], 0
+		mov eax, edi
 
-class weapon
-{
-public:
-	char pad_0000[20]; //0x0000
-	class ammoClip* ammoPtr; //0x0014
-}; //Size: 0x0018
-static_assert(sizeof( weapon ) == 0x18);
-
-class ammoClip
-{
-public:
-	int32_t ammo; //0x0000
-}; //Size: 0x0004
-static_assert(sizeof( ammoClip ) == 0x4);
+		exit :
+		jmp [g_jmpBackAdd]
+	}
+}
 
 DWORD WINAPI myThreadProc( HMODULE hModule )
 {
@@ -66,14 +61,23 @@ DWORD WINAPI myThreadProc( HMODULE hModule )
 	// Get module base
 
 	uintptr_t ModuleBase{ (uintptr_t)GetModuleHandle( L"ac_client.exe" ) };
-	ent* pLocalPlayerBaseAddr = *(ent**)(ModuleBase + 0x10f4f4);
+	tGetCrossHairEnt getCrossHairEnt{ (tGetCrossHairEnt)(ModuleBase + 0x607c0) };
+	oPrintF printF{ (oPrintF)(ModuleBase + 0x6B060) };
 
-	bool bHealth{ false };
-	bool bAmmo{ false };
+	Player* localPlayerBaseAddr{ *(Player**)(ModuleBase + 0x10f4f4) };
+
+	const char* format{ "%s:\f%d %s" };
+	bool bInvincible{ false };
 	bool bRecoil{ false };
-	bool bArmour{ false };
-	bool bGrenade{ false };
 	bool bOneShotOneKill{ false };
+	bool bChangeWeapon{ false };
+	bool bTeam{ false };
+	bool bJump{ false };
+	bool bFly{ false };
+	bool bHop{ false };
+	bool bSpeed{ false };
+	bool bTriggerbot{ false };
+	bool bToggleState{ false };
 
 	const int newValue{ 9999 };
 	const int HnewValue{ newValue };
@@ -82,114 +86,327 @@ DWORD WINAPI myThreadProc( HMODULE hModule )
 	const int GnewValue{ newValue };
 	// Hack loop
 
-	while ( !GetAsyncKeyState( VK_END ) & 1 )
+	while ( !(GetAsyncKeyState( VK_END ) & 1) )
 	{
 		// key input
 
+		if ( GetAsyncKeyState( VK_NUMPAD0 ) & 1 )
+		{
+			if ( bInvincible )
+			{
+				printF( format, "HACKER", 1, "'INVINCIBILITY' disabled!!" );
+
+				bInvincible = !bInvincible;
+			}
+			else
+			{
+				printF( format, "HACKER", 1, "You are now 'INVINCIBLE'!!" );
+
+				bInvincible = !bInvincible;
+			}
+		}
+
 		if ( GetAsyncKeyState( VK_NUMPAD1 ) & 1 )
-		{
-			if ( bHealth )
-			{
-				std::cout << "Unlimited Health hack disabled!!\n";
-				std::cout << '\n';
-				bHealth = !bHealth;
-			}
-			else
-			{
-				std::cout << "Unlimited Health hack enabled!!\n";
-				std::cout << '\n';
-				bHealth = !bHealth;
-			}
-		}
-
-		if ( GetAsyncKeyState( VK_NUMPAD2 ) & 1 )
-		{
-			if ( bArmour )
-			{
-				std::cout << "Unlimited Armour hack disabled!!\n";
-				std::cout << '\n';
-				bArmour = !bArmour;
-			}
-			else
-			{
-				std::cout << "Unlimited Armour hack enabled!!\n";
-				std::cout << '\n';
-				bArmour = !bArmour;
-			}
-		}
-
-		if ( GetAsyncKeyState( VK_NUMPAD3 ) & 1 )
-		{
-			if ( bAmmo )
-			{
-				std::cout << "Unlimited Ammo hack disabled!!\n";
-				std::cout << '\n';
-				bAmmo = !bAmmo;
-			}
-			else
-			{
-				std::cout << "Unlimited Ammo hack enabled!!\n";
-				std::cout << '\n';
-				bAmmo = !bAmmo;
-			}
-		}
-
-		if ( GetAsyncKeyState( VK_NUMPAD4 ) & 1 )
 		{
 			bRecoil = !bRecoil;
 			
 			if ( bRecoil )
 			{
-				std::cout << "Recoil hack enabled!\n\n";
+				printF( format, "HACKER", 1, "Recoil hack enabled!" );
+
 				mem::nop( (BYTE*)(ModuleBase + 0x63786), 10 );
 			}
 			else
 			{
-				std::cout << "Recoil hack disabled!\n\n";
+				printF( format, "HACKER", 1, "Recoil hack disabled!" );
+
 				mem::patch( (BYTE*)(ModuleBase + 0x63786), (BYTE*)"\x50\x8D\x4C\x24\x1C\x51\x8B\xCE\xFF\xD2", 10 );
 			}
 		}
 			
-		if ( GetAsyncKeyState( VK_NUMPAD5 ) & 1 )
+
+		if ( GetAsyncKeyState( VK_NUMPAD2 ) & 1 )
 		{
-			if ( bGrenade )
+			bOneShotOneKill = !bOneShotOneKill;
+
+			if ( bOneShotOneKill )
 			{
-				std::cout << "Unlimited Grenade hack disabled!!\n";
-				std::cout << '\n';
-				bGrenade = !bGrenade;
+				printF( format, "HACKER", 1, "One Shot One Kill hack eabled!!" );
+
+				int hookLength{ 5 };
+				DWORD hookAdd{ ModuleBase + 0x29D1F };
+				g_jmpBackAdd = hookAdd + hookLength;
+				g_team = localPlayerBaseAddr->team;
+
+				hook( (void*)hookAdd, &ourFunc, hookLength );
 			}
 			else
 			{
-				std::cout << "Unlimited Grenade hack enabled!!\n";
+				printF( format, "HACKER", 1, "One Shot One Kill hack disabled!!" );
+
+				mem::patch((BYTE*)(ModuleBase + 0x29D1F), (BYTE*)"\x29\x7B\x04\x8B\xC7", 5 );
+			}
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD3 ) & 1 )
+		{
+			bChangeWeapon = !bChangeWeapon;
+
+			if ( bChangeWeapon )
+			{
+				std::cout << "To which WEAPON do you want to change?\n";
+				std::cout << "Press: \n";
+				std::cout << "'0' for KNIFE \n";
+				std::cout << "'1' for PISTOL \n";
+				std::cout << "'2' for CARBINE \n";
+				std::cout << "'3' for SHOTTY \n";
+				std::cout << "'4' for SUBMACHINE GUN \n";
+				std::cout << "'5' for SNIPER \n";
+				std::cout << "'6' for ASSAULT \n";
+				std::cout << "'7' for CPISTOL \n";
+				std::cout << "'8' for GRENADE \n";
+				std::cout << "'9' for AKIMBO \n";
+				//std::cout << "'INSERT' for EXIT \n";
 				std::cout << '\n';
-				bGrenade = !bGrenade;
+
+				while ( !(GetAsyncKeyState( VK_INSERT ) & 1) )
+				{
+					localPlayerBaseAddr->nextWeapon = localPlayerBaseAddr->currentWeapon;
+
+					if ( GetAsyncKeyState( VK_NUMPAD0 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->knifePtr;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD1 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->pistolPtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD2 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->carbinePtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD3 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->shotgunPtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD4 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->subGunPtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD5 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->sniperPtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD6 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->assaultPtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD7 ) & 1 )
+					{
+						std::cout << "Sorry! cPistol is currently unavailable.\n";
+						//localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->cpistolPtr;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD8 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->grenadePtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+
+					if ( GetAsyncKeyState( VK_NUMPAD9 ) & 1 )
+					{
+						localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->akimboPtr;
+						localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+						break;
+					}
+				}
+				std::cout << "You now have " << localPlayerBaseAddr->currentWeapon->namePtr->name << ".\n";
+			}
+			else
+			{
+				std::cout << "Any Weapon hack disabled!!\n";
+				std::cout << '\n';
+
+				if ( localPlayerBaseAddr )
+				{
+					localPlayerBaseAddr->currentWeapon = localPlayerBaseAddr->nextWeapon;
+				}
+			}
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD4 ) & 1 )
+		{
+			bTeam = !bTeam;
+
+			if ( localPlayerBaseAddr )
+			{
+				if ( bTeam )
+				{
+					if ( localPlayerBaseAddr->team )
+					{
+						localPlayerBaseAddr->team = 0;
+					}
+					else
+					{
+						localPlayerBaseAddr->team = 1;
+					}
+
+					printF( format, "HACKER", 1, "Team switched." );
+
+					if ( localPlayerBaseAddr->team )
+					{
+						printF( format, "Now, your current team is ", 1, "blue." );
+					}
+					else
+					{
+						printF( format, "Now, your current team is ", 1, "red." );
+					}
+					bTeam = !bTeam;
+				}
+			}
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD5 ) & 1 )
+		{
+			if ( bTriggerbot )
+			{
+				printF( format, "HACKER", 1, "Triggerbot disabled." );
+
+				bTriggerbot = !bTriggerbot;
+			}
+			else
+			{
+				printF( format, "HACKER", 1, "Triggerbot enabled." );
+
+				bTriggerbot = !bTriggerbot;
+			}
+			
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD6 ) & 1 )
+		{ 
+			bHop = !bHop;
+
+			if ( bHop )
+			{
+				printF( format, "HACKER", 1, "B_HOP hack enabled." );
+
+				mem::patch( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\xB2\x99\x88\x50\x6B\x90\x90", 7 );
+
+			}
+			else
+			{
+				printF( format, "HACKER", 1, "B_HOP hack disabled." );
+
+				mem::patch( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\x8A\x54\x24\x04\x88\x50\x6B", 7 );
+			}
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD7 ) & 1 )
+		{
+			if ( bJump )
+			{
+				printF( format, "HACKER", 1, "Continuos JUMP hack disabled." );
+
+				bJump = !bJump;
+			}
+			else
+			{
+				printF( format, "HACKER", 1, "Continuos JUMP hack enabled." );
+
+				bJump = !bJump;
+			}
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD8 ) & 1 )
+		{
+			bSpeed = !bSpeed;
+
+			if ( bSpeed )
+			{
+				printF( format, "HACKER", 1, "Speed Hack enabled!!" );
+
+				mem::patch( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x03\x00\x00\x00", 5 );
+			}
+			else
+			{
+				printF( format, "HACKER", 1, "Speed Hack disabled!!" );
+
+				mem::patch( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x01\x00\x00\x00", 5 );
+			}
+		}
+
+		if ( GetAsyncKeyState( VK_NUMPAD9 ) & 1 )
+		{
+			bToggleState = !bToggleState;
+
+			if ( bToggleState )
+			{
+				printF( format, "HACKER", 1, "GODMODE enabled." );
+
+				localPlayerBaseAddr->entSpecMode = 5;
+				localPlayerBaseAddr->playerState = 11;
+			}
+			else
+			{
+				printF( format, "HACKER", 1, "GODMODE disabled." );
+
+				localPlayerBaseAddr->entSpecMode = 0;
+				localPlayerBaseAddr->playerState = 0;
 			}
 		}
 
 		// Continuos write/freeze
 
 		// check against 'hackable' state
-		if ( pLocalPlayerBaseAddr )
+		if ( localPlayerBaseAddr )
 		{
-			if ( bHealth )
+			if ( bInvincible )
 			{
-				pLocalPlayerBaseAddr->Health = HnewValue;
+				localPlayerBaseAddr->health = HnewValue;
+				localPlayerBaseAddr->currentWeapon->ammoClip->ammo = AnewValue;
+				localPlayerBaseAddr->armour = ARnewValue;
+				localPlayerBaseAddr->numGrenades = GnewValue;
 			}
 
-			if ( bAmmo )
+			if ( bTriggerbot )
 			{
-				pLocalPlayerBaseAddr->currentWeapon->ammoPtr->ammo = AnewValue;
+				Player* pCrossHairEnt{ getCrossHairEnt( ) };
 
+				if ( pCrossHairEnt )
+				{
+					if ( pCrossHairEnt->team != localPlayerBaseAddr->team )
+						localPlayerBaseAddr->isFiring = 1;
+				}
+				else
+					localPlayerBaseAddr->isFiring = 0;
 			}
 
-			if ( bArmour )
+			if ( bJump )
 			{
-				pLocalPlayerBaseAddr->Armour = ARnewValue;
-			}
-
-			if ( bGrenade )
-			{
-				pLocalPlayerBaseAddr->numGrenades = GnewValue;
+				localPlayerBaseAddr->isJumping = true;
 			}
 		}
 
