@@ -7,19 +7,19 @@ class Hook
 private:
 	BYTE* m_gateway{ nullptr };
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	void giveProtection( void* src, DWORD& oldProtect)
 	{
 		VirtualProtect( src, LENGTH, PAGE_EXECUTE_READWRITE, &oldProtect );
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	void restoreProtection( void* src, DWORD& oldProtect )
 	{
 		VirtualProtect( src, LENGTH, oldProtect, &oldProtect );
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	void calculateRelativeAddress( BYTE* src, BYTE* dst )
 	{
 		intptr_t relativeAddress{ (intptr_t)dst - (intptr_t)src - 5 };
@@ -42,14 +42,14 @@ public:
 		m_gateway = nullptr;
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	void saveOrigBytes( void* src )
 	{
 		m_gateway = (BYTE*)(VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE ));
 		memcpy_s( m_gateway, LENGTH, src, LENGTH );
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	bool midDetour32( BYTE* src, BYTE* dst )
 	{
 		try
@@ -75,7 +75,7 @@ public:
 		return true;
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	bool Detour32( BYTE* src, BYTE* dst )
 	{
 		try
@@ -99,7 +99,7 @@ public:
 		return true;
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	BYTE* TrampHook32( BYTE* src, BYTE* dst )
 	{
 		try
@@ -122,7 +122,7 @@ public:
 		return m_gateway;
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	void patch( BYTE* dst, BYTE* src, intptr_t len)
 	{
 		DWORD oldProtect{};
@@ -132,7 +132,7 @@ public:
 		restoreProtection<LENGTH>( dst, oldProtect );
 	}
 
-	template <intptr_t LENGTH>
+	template <SIZE_T LENGTH>
 	void nop( BYTE* dst, intptr_t len )
 	{
 		DWORD oldProtect{};
