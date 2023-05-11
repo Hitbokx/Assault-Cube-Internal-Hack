@@ -36,6 +36,9 @@
     <ClCompile Include="HookingClass.cpp">
       <Filter>Header Files</Filter>
     </ClCompile>
+    <ClCompile Include="mem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Class.h">
@@ -51,6 +54,9 @@
       <Filter>OpenGL Draw</Filter>
     </ClInclude>
     <ClInclude Include="Vector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

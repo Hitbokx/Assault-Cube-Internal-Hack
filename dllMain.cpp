@@ -1,6 +1,6 @@
 #include<Windows.h>
 #include<iostream>
-//#include "mem.h"
+#include "mem.h"
 #include "Class.h"
 #include "HookingClass.h"
 #include <functional>
@@ -118,13 +118,13 @@ BOOL __stdcall hkwglSwapBuffers( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "Recoil hack enabled!" );
 
-			g_hook.nop<10>( (BYTE*)(ModuleBase + 0x63786), 10 );
+			mem::nop( (BYTE*)(ModuleBase + 0x63786), 10 );
 		}
 		else
 		{
 			printF( format, "HACKER", 1, "Recoil hack disabled!" );
 
-			g_hook.patch<10>( (BYTE*)(ModuleBase + 0x63786), (BYTE*)"\x50\x8D\x4C\x24\x1C\x51\x8B\xCE\xFF\xD2", 10 );
+			mem::patch( (BYTE*)(ModuleBase + 0x63786), (BYTE*)"\x50\x8D\x4C\x24\x1C\x51\x8B\xCE\xFF\xD2", 10 );
 		}
 	} // Recoil
 
@@ -147,7 +147,7 @@ BOOL __stdcall hkwglSwapBuffers( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "One Shot One Kill hack disabled!!" );
 
-			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x29D1F), (BYTE*)"\x29\x7B\x04\x8B\xC7", 5 );
+			mem::patch( (BYTE*)(ModuleBase + 0x29D1F), (BYTE*)"\x29\x7B\x04\x8B\xC7", 5 );
 		}
 	}
 
@@ -316,14 +316,14 @@ BOOL __stdcall hkwglSwapBuffers( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "B_HOP hack enabled." );
 
-			g_hook.patch<7>( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\xB2\x99\x88\x50\x6B\x90\x90", 7 );
+			mem::patch( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\xB2\x99\x88\x50\x6B\x90\x90", 7 );
 
 		}
 		else
 		{
 			printF( format, "HACKER", 1, "B_HOP hack disabled." );
 
-			g_hook.patch<7>( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\x8A\x54\x24\x04\x88\x50\x6B", 7 );
+			mem::patch( (BYTE*)(ModuleBase + 0x5C03D), (BYTE*)"\x8A\x54\x24\x04\x88\x50\x6B", 7 );
 		}
 	}
 
@@ -351,13 +351,13 @@ BOOL __stdcall hkwglSwapBuffers( HDC hdc )
 		{
 			printF( format, "HACKER", 1, "Speed Hack enabled!!" );
 
-			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x03\x00\x00\x00", 5 );
+			mem::patch( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x03\x00\x00\x00", 5 );
 		}
 		else
 		{
 			printF( format, "HACKER", 1, "Speed Hack disabled!!" );
 
-			g_hook.patch<5>( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x01\x00\x00\x00", 5 );
+			mem::patch( (BYTE*)(ModuleBase + 0x5BEA0), (BYTE*)"\xB8\x01\x00\x00\x00", 5 );
 		}
 	}
 
@@ -440,16 +440,18 @@ DWORD WINAPI myThreadProc( HMODULE hInstDLL )
 	freopen_s( &f, "CONOUT$", "w", stdout );
 	std::cout << "Yo! Hitbokx here.\n";
 
-	Hook2 SwapBuffersHook( "wglSwapBuffers", "opengl32.dll", (BYTE*)hkwglSwapBuffers, (BYTE*)&wglSwapBuffersGateway, 5 );
+	//Hook SwapBuffersHook( "wglSwapBuffers", "opengl32.dll", (BYTE*)hkwglSwapBuffers, (BYTE*)&wglSwapBuffersGateway, 5 );
 
-	SwapBuffersHook.Enable( );
+	g_hook.startHook<5>( "wglSwapBuffers", "opengl32.dll", (BYTE*)hkwglSwapBuffers, (BYTE*)&wglSwapBuffersGateway );
+
+	//SwapBuffersHook.startHook( );
 
 	while ( !(GetAsyncKeyState( VK_END ) & 1) )
 	{
 
 	}
-
-	SwapBuffersHook.Disable();
+	
+	g_hook.unHook<5>(  );
 
 	if ( f )
 		fclose( f );

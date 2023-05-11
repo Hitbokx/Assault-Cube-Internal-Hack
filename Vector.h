@@ -52,6 +52,13 @@ public:
 		this->z = z;
 	}
 
+	Vector3( Vector3& rhs )
+	{
+		this->x = x;
+		this->y = y;
+		this->z = z;
+	}
+
 	Vector3& operator=( const Vector3& rhs )
 	{
 		this->x = rhs.x;

@@ -1,8 +1,17 @@
 #include "HookingClass.h"
-
-bool mem::Detour64( BYTE* src, BYTE* dst, const uintptr_t len )
+/*
+bool Hook::Detour32( BYTE* src, BYTE* dst, const uintptr_t len )
 {
-	if ( len < 5 ) return false;
+	try
+	{
+		if ( len < 5 )
+			throw "Connot HOOK a function of length less than 5.\n";
+	}
+
+	catch ( const char* error )
+	{
+		std::cerr << "Error: " << error << '\n';
+	}
 
 	DWORD curProtection;
 	VirtualProtect( src, len, PAGE_EXECUTE_READWRITE, &curProtection );
@@ -17,9 +26,18 @@ bool mem::Detour64( BYTE* src, BYTE* dst, const uintptr_t len )
 	return true;
 }
 
-BYTE* mem::TrampHook64( BYTE* src, BYTE* dst, const uintptr_t len )
+BYTE* Hook::TrampHook32( BYTE* src, BYTE* dst, const uintptr_t len )
 {
-	if ( len < 5 ) return 0;
+	try
+	{
+		if ( len < 5 )
+			throw "Connot HOOK a function of length less than 5.\n";
+	}
+
+	catch ( const char* error )
+	{
+		std::cerr << "Error: " << error << '\n';
+	}
 
 	//Create Gateway
 	BYTE* gateway = (BYTE*)VirtualAlloc( 0, len, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
@@ -37,53 +55,60 @@ BYTE* mem::TrampHook64( BYTE* src, BYTE* dst, const uintptr_t len )
 	*(uintptr_t*)((uintptr_t)gateway + len + 1) = gatewayRelativeAddr;
 
 	//Perform the detour
-	mem::Detour64( src, dst, len );
+	Hook::Detour32( src, dst, len );
 
 	return gateway;
 }
 
-void mem::Patch( BYTE* dst, BYTE* src, unsigned int size )
+Hook::Hook( BYTE* src, BYTE* dst, BYTE* PtrToGatewayFnPtr, uintptr_t len )
 {
-	DWORD oldprotect;
-	VirtualProtect( dst, size, PAGE_EXECUTE_READWRITE, &oldprotect );
-
-	memcpy( dst, src, size );
-	VirtualProtect( dst, size, oldprotect, &oldprotect );
+	this->m_src = src;
+	this->m_dst = dst;
+	this->m_len = len;
+	this->m_gateway = PtrToGatewayFnPtr;
 }
 
-Hook2::Hook2( BYTE* src, BYTE* dst, BYTE* PtrToGatewayFnPtr, uintptr_t len )
-{
-	this->src = src;
-	this->dst = dst;
-	this->len = len;
-	this->PtrToGatewayFnPtr = PtrToGatewayFnPtr;
-}
-
-Hook2::Hook2( const char* exportName, const char* modName, BYTE* dst, BYTE* PtrToGatewayFnPtr, uintptr_t len )
+Hook::Hook( const char* exportedFuncName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len )
 {
 	HMODULE hMod = GetModuleHandleA( modName );
 
-	this->src = (BYTE*)GetProcAddress( hMod, exportName );
-	this->dst = dst;
-	this->len = len;
-	this->PtrToGatewayFnPtr = PtrToGatewayFnPtr;
+	this->m_src = (BYTE*)GetProcAddress( hMod, exportedFuncName );
+	this->m_dst = dst;
+	this->m_len = len;
+	this->m_gateway = PtrToGatewayPtr;
 }
 
-void Hook2::Enable( )
+void Hook::startHook( )
 {
-	memcpy( originalBytes, src, len );
-	*(uintptr_t*)PtrToGatewayFnPtr = (uintptr_t)mem::TrampHook64( src, dst, len );
+	memcpy( originalBytes, m_src, m_len );
+	*(uintptr_t*)m_gateway = (uintptr_t)Hook::TrampHook32( m_src, m_dst, m_len );
 	bStatus = true;
 }
 
-void Hook2::Disable( )
+
+template <SIZE_T LENGTH>
+void Hook::patchByte( BYTE* lpOriginalFuncAddrs )
 {
-	mem::Patch( src, originalBytes, len );
+	DWORD oldprotect;
+	VirtualProtect( lpOriginalFuncAddrs, LENGTH, PAGE_EXECUTE_READWRITE, &oldProc );
+	RtlMoveMemory( lpOriginalFuncAddrs, m_gateWay, LENGTH );
+	VirtualProtect( lpOriginalFuncAddrs, LENGTH, oldProc, &oldProc );
+}
+
+template <SIZE_T LENGTH>
+void Hook::unHook( BYTE* lpOriginalFuncAddrs )
+{
+	patchByte<LENGTH>( lpOriginalFuncAddrs );
+	if ( m_gateway )
+		VirtualFree( m_gateway, 0, MEM_RELEASE );
+	m_gateway = nullptr;
 	bStatus = false;
 }
 
-void Hook2::Toggle( )
+void Hook::Toggle( )
 {
-	if ( !bStatus ) Enable( );
-	else Disable( );
-}
+	if ( !bStatus )
+		startHook( );
+	else
+		unHook( );
+}*/

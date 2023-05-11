@@ -6,25 +6,13 @@
 class Hook
 {
 private:
-	BYTE* m_dst{ nullptr };
-	BYTE* m_src{ nullptr };
+
 	BYTE* m_gateway{ nullptr };
-	uintptr_t m_len{ 0 };
+
+	BYTE originalBytes[10]{ 0 };
 
 	template <SIZE_T LENGTH>
-	void giveProtection( void* src, DWORD& oldProtect)
-	{
-		VirtualProtect( src, LENGTH, PAGE_EXECUTE_READWRITE, &oldProtect );
-	}
-
-	template <SIZE_T LENGTH>
-	void restoreProtection( void* src, DWORD& oldProtect )
-	{
-		VirtualProtect( src, LENGTH, oldProtect, &oldProtect );
-	}
-
-	template <SIZE_T LENGTH>
-	void calculateRelativeAddress( BYTE* src, BYTE* dst )
+	void calculateRelativeAddress( BYTE*& src, BYTE*& dst )
 	{
 		intptr_t relativeAddress{ (intptr_t)dst - (intptr_t)src - 5 };
 
@@ -37,16 +25,6 @@ public:
 	Hook( ) = default;
 
 	Hook( const Hook& hook ) = delete;                               // copy constructor
-
-	Hook( const char* exportName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len )
-	{
-		HMODULE hMod = GetModuleHandleA( modName );
-
-		this->m_src = (BYTE*)GetProcAddress( hMod, exportName );
-		this->m_dst = dst;
-		this->m_len = len;
-		this->m_gateway = PtrToGatewayPtr;
-	}
 
 	Hook& operator=( const Hook& hook ) = delete;                    // copy assignment
 
@@ -78,13 +56,13 @@ public:
 		}
 
 		DWORD oldProtect{};
-		giveProtection<LENGTH>( src, oldProtect );
+		VirtualProtect( src, LENGTH, PAGE_EXECUTE_READWRITE, &oldProtect );
 
 		memset( src, 0x90, LENGTH );                          // no-op rest of the instructions
 
-		calculateRelativeAddress< 0 >( src, dst );      
+		calculateRelativeAddress< 0 >( src, dst );
 
-		restoreProtection<LENGTH>( src, oldProtect );
+		VirtualProtect( src, LENGTH, oldProtect, &oldProtect );
 
 		return true;
 	}
@@ -95,20 +73,20 @@ public:
 		try
 		{
 			if ( LENGTH < 5 )
-			throw "Connot HOOK a function of length less than 5.\n";
+				throw "Connot HOOK a function of length less than 5.\n";
 		}
-		
+
 		catch ( const char* error )
 		{
 			std::cerr << "Error: " << error << '\n';
 		}
 
 		DWORD oldProtect;
-		giveProtection<LENGTH>( src, oldProtect );
+		VirtualProtect( src, LENGTH, PAGE_EXECUTE_READWRITE, &oldProtect );
 
 		calculateRelativeAddress<0>( src, dst );
 
-		restoreProtection<LENGTH>( src, oldProtect );
+		VirtualProtect( src, LENGTH, oldProtect, &oldProtect );
 
 		return true;
 	}
@@ -127,68 +105,52 @@ public:
 			std::cerr << "Error: " << error << '\n';
 		}
 
-		saveOrigBytes<LENGTH>( src );
+		BYTE* gateway = (BYTE*)VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
 
-		calculateRelativeAddress<LENGTH>( m_gateway, src );
+		//write the stolen bytes to the gateway
+		memcpy_s( gateway, LENGTH, src, LENGTH );
 
+		calculateRelativeAddress<LENGTH>( gateway, src );
+
+		//Perform the detour
 		Detour32<LENGTH>( src, dst );
 
-		return m_gateway;
+		return gateway;
 	}
 
 	template <SIZE_T LENGTH>
-	void patch( BYTE* dst, BYTE* src, intptr_t len)
+	void patchByte( BYTE* lpOriginalFuncAddrs )
 	{
-		DWORD oldProtect{};
-		giveProtection<LENGTH>( dst, oldProtect );
+		DWORD oldprotect{};
 
-		memcpy( dst, src, len );
-		restoreProtection<LENGTH>( dst, oldProtect );
+		VirtualProtect( lpOriginalFuncAddrs, LENGTH, PAGE_EXECUTE_READWRITE, &oldprotect );
+		RtlMoveMemory( lpOriginalFuncAddrs, m_gateway, LENGTH );
+		VirtualProtect( lpOriginalFuncAddrs, LENGTH, oldprotect, &oldprotect );
 	}
 
+	/*==============================*/
 	template <SIZE_T LENGTH>
-	void nop( BYTE* dst, intptr_t len )
+	void startHook( const char* exportedFuncName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr )
 	{
-		DWORD oldProtect{};
-		giveProtection<LENGTH>( dst, oldProtect );
+		HMODULE hMod{ GetModuleHandleA( modName ) };
 
-		memset( dst, 0x90, len );
-		restoreProtection<LENGTH>( dst, oldProtect );
+		BYTE* src{ (BYTE*)GetProcAddress( hMod, exportedFuncName ) };
+		m_gateway = PtrToGatewayPtr;
+
+		memcpy( originalBytes, src, LENGTH );
+		*(uintptr_t*)m_gateway = (uintptr_t)TrampHook32<LENGTH>( src, dst );
+	}
+	/*==============================*/
+
+	template <SIZE_T LENGTH>
+	void unHook( )
+	{
+		patchByte<LENGTH>( originalBytes );
+
+		if ( m_gateway )
+			VirtualFree( m_gateway, NULL, MEM_RELEASE );
+		m_gateway = nullptr;
 	}
 };
 
 inline Hook g_hook{};
-
-namespace mem
-{
-	bool Detour64( BYTE* src, BYTE* dst, const uintptr_t len );
-	
-
-	BYTE* TrampHook64( BYTE* src, BYTE* dst, const uintptr_t len );
-	
-
-	void Patch( BYTE* dst, BYTE* src, unsigned int size );
-	
-}
-
-struct Hook2
-{
-	bool bStatus{ false };
-
-	BYTE* src{ nullptr };
-	BYTE* dst{ nullptr };
-	BYTE* PtrToGatewayFnPtr{ nullptr };
-	uintptr_t len{ 0 };
-
-	BYTE originalBytes[10]{ 0 };
-
-	Hook2( BYTE* src, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len );
-	
-	Hook2( const char* exportName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr, uintptr_t len );
-
-	void Enable( );
-
-	void Disable( );
-
-	void Toggle( );
-};
