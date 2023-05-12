@@ -8,8 +8,8 @@ class Hook
 private:
 
 	BYTE* m_gateway{ nullptr };
-
-	BYTE originalBytes[10]{ 0 };
+	BYTE* m_src{ nullptr };
+	BYTE m_originalBytes[10]{ 0 };
 
 	template <SIZE_T LENGTH>
 	void calculateRelativeAddress( BYTE*& src, BYTE*& dst )
@@ -35,10 +35,14 @@ public:
 	}
 
 	template <SIZE_T LENGTH>
-	void saveOrigBytes( void* src )
+	void saveOrigBytes( BYTE* src )
 	{
-		m_gateway = (BYTE*)(VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE ));
-		memcpy_s( m_gateway, LENGTH, src, LENGTH );
+		BYTE* gateWay = (BYTE*)VirtualAlloc( 0, LENGTH + 5, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
+
+		RtlMoveMemory( gateWay, src, LENGTH );
+
+		m_gateway = gateWay; 
+		gateWay = nullptr;
 	}
 
 	template <SIZE_T LENGTH>
@@ -105,17 +109,31 @@ public:
 			std::cerr << "Error: " << error << '\n';
 		}
 
-		BYTE* gateway = (BYTE*)VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
+		if ( m_src )
+		{
 
-		//write the stolen bytes to the gateway
-		memcpy_s( gateway, LENGTH, src, LENGTH );
+			BYTE* gateway = (BYTE*)VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
 
-		calculateRelativeAddress<LENGTH>( gateway, src );
+			//write the stolen bytes to the gateway
+			memcpy_s( gateway, LENGTH, src, LENGTH );
 
-		//Perform the detour
-		Detour32<LENGTH>( src, dst );
+			calculateRelativeAddress<LENGTH>( gateway, src );
 
-		return gateway;
+			//Perform the detour
+			Detour32<LENGTH>( src, dst );
+
+			return gateway;
+		}
+		else
+		{
+			saveOrigBytes<LENGTH>( src );
+
+			calculateRelativeAddress<LENGTH>( m_gateway, src );
+
+			Detour32<LENGTH>( src, dst );
+
+			return m_gateway;
+		}
 	}
 
 	template <SIZE_T LENGTH>
@@ -124,7 +142,11 @@ public:
 		DWORD oldprotect{};
 
 		VirtualProtect( lpOriginalFuncAddrs, LENGTH, PAGE_EXECUTE_READWRITE, &oldprotect );
-		RtlMoveMemory( lpOriginalFuncAddrs, m_gateway, LENGTH );
+		if ( m_originalBytes )
+			RtlMoveMemory( lpOriginalFuncAddrs, m_originalBytes, LENGTH );
+		else
+			RtlMoveMemory( lpOriginalFuncAddrs, m_gateway, LENGTH );
+
 		VirtualProtect( lpOriginalFuncAddrs, LENGTH, oldprotect, &oldprotect );
 	}
 
@@ -134,18 +156,21 @@ public:
 	{
 		HMODULE hMod{ GetModuleHandleA( modName ) };
 
-		BYTE* src{ (BYTE*)GetProcAddress( hMod, exportedFuncName ) };
+		m_src = (BYTE*)GetProcAddress( hMod, exportedFuncName );
 		m_gateway = PtrToGatewayPtr;
 
-		memcpy( originalBytes, src, LENGTH );
-		*(uintptr_t*)m_gateway = (uintptr_t)TrampHook32<LENGTH>( src, dst );
+		memcpy( m_originalBytes, m_src, LENGTH );
+		*(uintptr_t*)m_gateway = (uintptr_t)TrampHook32<LENGTH>( m_src, dst );
 	}
 	/*==============================*/
 
 	template <SIZE_T LENGTH>
-	void unHook( )
+	void unHook( BYTE* lpOriginalFuncAddrs )
 	{
-		patchByte<LENGTH>( originalBytes );
+		if ( lpOriginalFuncAddrs )
+			patchByte<LENGTH>( lpOriginalFuncAddrs );
+		else
+			patchByte<LENGTH>( m_src );
 
 		if ( m_gateway )
 			VirtualFree( m_gateway, NULL, MEM_RELEASE );

@@ -450,8 +450,9 @@ DWORD WINAPI myThreadProc( HMODULE hInstDLL )
 	{
 
 	}
+
 	
-	g_hook.unHook<5>(  );
+	g_hook.unHook<5>( nullptr );
 
 	if ( f )
 		fclose( f );
