@@ -32,6 +32,7 @@ public:
 	{
 		VirtualFree( m_gateway, NULL, MEM_RELEASE );
 		m_gateway = nullptr;
+		m_src = nullptr;
 	}
 
 	template <SIZE_T LENGTH>
@@ -112,10 +113,10 @@ public:
 		if ( m_src )
 		{
 
-			BYTE* gateway = (BYTE*)VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE );
+			BYTE* gateway{ (BYTE*)VirtualAlloc( 0, LENGTH, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE ) };
 
 			//write the stolen bytes to the gateway
-			memcpy_s( gateway, LENGTH, src, LENGTH );
+			RtlMoveMemory( gateway, src, LENGTH );
 
 			calculateRelativeAddress<LENGTH>( gateway, src );
 
@@ -137,20 +138,17 @@ public:
 	}
 
 	template <SIZE_T LENGTH>
-	void patchByte( BYTE* lpOriginalFuncAddrs )
+	void patchByte( BYTE* lpOriginalFuncAddrs, BYTE* src )
 	{
 		DWORD oldprotect{};
 
 		VirtualProtect( lpOriginalFuncAddrs, LENGTH, PAGE_EXECUTE_READWRITE, &oldprotect );
-		if ( m_originalBytes )
-			RtlMoveMemory( lpOriginalFuncAddrs, m_originalBytes, LENGTH );
-		else
-			RtlMoveMemory( lpOriginalFuncAddrs, m_gateway, LENGTH );
+
+		RtlMoveMemory( lpOriginalFuncAddrs, src, LENGTH );
 
 		VirtualProtect( lpOriginalFuncAddrs, LENGTH, oldprotect, &oldprotect );
 	}
 
-	/*==============================*/
 	template <SIZE_T LENGTH>
 	void startHook( const char* exportedFuncName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr )
 	{
@@ -162,19 +160,20 @@ public:
 		memcpy( m_originalBytes, m_src, LENGTH );
 		*(uintptr_t*)m_gateway = (uintptr_t)TrampHook32<LENGTH>( m_src, dst );
 	}
-	/*==============================*/
 
 	template <SIZE_T LENGTH>
 	void unHook( BYTE* lpOriginalFuncAddrs )
 	{
 		if ( lpOriginalFuncAddrs )
-			patchByte<LENGTH>( lpOriginalFuncAddrs );
+			patchByte<LENGTH>( lpOriginalFuncAddrs, m_gateway );
 		else
-			patchByte<LENGTH>( m_src );
+			patchByte<LENGTH>( m_src, m_originalBytes );
 
 		if ( m_gateway )
 			VirtualFree( m_gateway, NULL, MEM_RELEASE );
+
 		m_gateway = nullptr;
+		m_src = nullptr;
 	}
 };
 

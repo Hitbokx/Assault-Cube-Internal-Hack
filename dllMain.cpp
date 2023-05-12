@@ -440,11 +440,7 @@ DWORD WINAPI myThreadProc( HMODULE hInstDLL )
 	freopen_s( &f, "CONOUT$", "w", stdout );
 	std::cout << "Yo! Hitbokx here.\n";
 
-	//Hook SwapBuffersHook( "wglSwapBuffers", "opengl32.dll", (BYTE*)hkwglSwapBuffers, (BYTE*)&wglSwapBuffersGateway, 5 );
-
 	g_hook.startHook<5>( "wglSwapBuffers", "opengl32.dll", (BYTE*)hkwglSwapBuffers, (BYTE*)&wglSwapBuffersGateway );
-
-	//SwapBuffersHook.startHook( );
 
 	while ( !(GetAsyncKeyState( VK_END ) & 1) )
 	{
