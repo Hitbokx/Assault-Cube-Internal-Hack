@@ -150,7 +150,7 @@ public:
 	}
 
 	template <SIZE_T LENGTH>
-	void startHook( const char* exportedFuncName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr )
+	void hookFunc( const char* exportedFuncName, const char* modName, BYTE* dst, BYTE* PtrToGatewayPtr )
 	{
 		HMODULE hMod{ GetModuleHandleA( modName ) };
 
